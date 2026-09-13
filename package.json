@@ -1,6 +1,6 @@
 {
   "name": "@caesarloo/dsh-config-git-backup",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Backup/restore DSH config, custom skills and plugin sources against a local git repository, callable by the agent as the dsh_config_git_backup tool (backup = sync + git commit; restore = repo back to live sources).",
   "keywords": [
     "dsh",
@@ -27,7 +27,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node test/smoke.mjs"
   },
   "dependencies": {
     "@deepseek-ai/dsh-tools": "0.1.0-rc.6",
