@@ -6,13 +6,27 @@
 // definition, subprocess.spawn delegates to node:child_process.
 //
 // Run with:  node test/smoke.mjs   (or: npm test)
+//
+// SMOKE_PLUGIN_DIST points the suite at another copy of the plugin (e.g. a second
+// local build). The copy must live in a tree that can resolve @deepseek-ai/dsh-tools.
+// Do NOT point it at the DSH install tree (~/.dsh/profiles/web/node_modules/...):
+// bare node resolves a mismatched @deepseek-ai/dsh-llm copy there and dsh-tools then
+// fails to load ("does not provide an export named 'CallId'") - a host-packaging
+// artifact, not a plugin defect. A *published* artifact is verified by content:
+// compare the tarball's dist/index.js SHA256 against the local build, then let
+// `dsh --profile web --dump-config` prove the host assembles it.
+//   $env:SMOKE_PLUGIN_DIST = 'file:///C:/path/to/other-build/dist/index.js'
+//   node test/smoke.mjs
 
 import { spawn } from 'node:child_process'
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { apply } from '../dist/index.js'
+
+const pluginDist = process.env.SMOKE_PLUGIN_DIST ?? new URL('../dist/index.js', import.meta.url).href
+console.log(`plugin under test: ${pluginDist}`)
+const { apply } = await import(pluginDist)
 
 const PS = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
 const SOURCE_SYNC = 'C:\\workspace\\dsh\\sync.ps1'
