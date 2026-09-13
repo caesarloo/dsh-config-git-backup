@@ -13,10 +13,21 @@
 // 之后对仓库执行 git add/commit，一步完成"备份留档"。还原方向同样走
 // sync.ps1 -Mode restore，把仓库内容拷回活跃源。
 //
+// 安全约定（2026-09-13 起，对应审核项 D2/D3/D4/D5）：
+//   - restore 是破坏性操作：必须显式传 confirm: true；缺省会先跑一次 sync.ps1 -DryRun
+//     取差异，然后把差异连同确认要求一起报错返回（fail-closed，绝不静默覆盖）。
+//     sync.ps1 侧另有第二道闸：没有 -Force 就拒绝执行，且执行前先做覆盖前快照。
+//   - dryRun: true 只预览、不改动（backup / restore 都支持）。
+//   - commit message 规范化：控制字符压平、空白折叠、长度截断到 200 字符。
+//   - 跨平台路径拼接用 node:path.join，不再硬编码 Windows 分隔符。
+//
 // 用法示例（模型视角）：
 //   dsh_config_git_backup({ mode: 'backup', message: '更新技能 weather-query' })
-//   dsh_config_git_backup({ mode: 'restore' })
+//   dsh_config_git_backup({ mode: 'restore', dryRun: true })     # 预览将被覆盖的项
+//   dsh_config_git_backup({ mode: 'restore', confirm: true })    # 确认还原（先快照后覆盖）
 
+import { stat } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 // 类型侧引入 subprocess 服务声明（扩展 Context.subprocess 类型；编译时擦除）
@@ -40,6 +51,7 @@ const RAW_OUTPUT_MAX_BYTES = 2 * 1024 * 1024 // 2 MiB
 const STDERR_MAX_BYTES = 256 * 1024
 const GRACE_MS = 3000
 const TIMEOUT_MS = 120000
+const MESSAGE_MAX_CHARS = 200
 
 export interface DshConfigGitBackupConfig {
   /** dsh 备份仓库目录；缺省回落环境变量 DSH_CONFIG_GIT_BACKUP_REPO_DIR。 */
@@ -58,7 +70,6 @@ interface RunResult {
 
 async function fileExists(path: string): Promise<boolean> {
   try {
-    const { stat } = await import('node:fs/promises')
     const info = await stat(path)
     return info.isFile()
   } catch {
@@ -116,12 +127,48 @@ function currentStamp(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+// commit message 规范化：控制字符压平、空白折叠成单空格、超长截断。
+// 既是 git 提交信息的卫生要求，也避免多行/超长 message 让提交记录难以阅读。
+function normalizeMessage(value: unknown): string {
+  const raw = typeof value === 'string' ? value : ''
+  const flat = raw
+    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (flat.length === 0) return `备份: ${currentStamp()}`
+  return flat.length > MESSAGE_MAX_CHARS ? `${flat.slice(0, MESSAGE_MAX_CHARS)}…` : flat
+}
+
+// sync.ps1 调用参数。dryRun → -DryRun（只预览）；restore + confirm → -Force（真正写入，
+// sync.ps1 侧会先做覆盖前快照）。backup 不需要 -Force（非破坏性）。
+function syncArgv(
+  powershell: string,
+  syncScript: string,
+  mode: string,
+  dryRun: boolean,
+  confirm: boolean,
+): string[] {
+  const argv = [
+    powershell,
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    syncScript,
+    '-Mode',
+    mode,
+  ]
+  if (dryRun) argv.push('-DryRun')
+  if (mode === 'restore' && confirm) argv.push('-Force')
+  return argv
+}
+
 export function apply(ctx: Context, config: DshConfigGitBackupConfig = {}) {
   const repoDir = config.repoDir ?? process.env.DSH_CONFIG_GIT_BACKUP_REPO_DIR
   const syncScript =
     config.syncScript ??
     process.env.DSH_CONFIG_GIT_BACKUP_SYNC_SCRIPT ??
-    (repoDir ? `${repoDir}\\sync.ps1` : undefined)
+    (repoDir ? join(repoDir, 'sync.ps1') : undefined)
   const powershell = config.powershell ?? POWERSHELL
   if (!repoDir || !syncScript) {
     ctx.logger.warn(
@@ -137,7 +184,10 @@ export function apply(ctx: Context, config: DshConfigGitBackupConfig = {}) {
       '(configured via plugin config or the DSH_CONFIG_GIT_BACKUP_REPO_DIR / DSH_CONFIG_GIT_BACKUP_SYNC_SCRIPT environment variables). ' +
       'Mode "backup" copies live sources (~/.dsh config + skills, the local plugins source dir) into the repo and commits them; ' +
       'mode "restore" copies the repo content back to the live sources (for reinstall / new machine). ' +
-      'Optionally pass a commit message.',
+      'restore is destructive and fail-closed: without confirm: true it changes nothing and instead returns a preview of what would be overwritten ' +
+      '(the script also refuses to run without -Force, and snapshots the live sources to <DSH_HOME>/vet/restore-snapshots/<timestamp> before overwriting). ' +
+      'Pass dryRun: true to preview either mode without changing anything. ' +
+      'Optionally pass a commit message (flattened to a single line, max 200 chars).',
 
     parameters: {
       mode: {
@@ -148,7 +198,19 @@ export function apply(ctx: Context, config: DshConfigGitBackupConfig = {}) {
       message: {
         type: 'string',
         description:
-          'Optional commit message for backup mode. Defaults to "备份: <timestamp>" (repository history language).',
+          'Optional commit message for backup mode. Control characters are flattened and the text is truncated to 200 chars. ' +
+          'Defaults to "备份: <timestamp>" (repository history language).',
+      },
+      dryRun: {
+        type: 'boolean',
+        description:
+          'Preview only: report which files would be added/overwritten, change nothing. Supported by both modes.',
+      },
+      confirm: {
+        type: 'boolean',
+        description:
+          'restore only: acknowledges that restore overwrites live sources (uncommitted local edits are lost). ' +
+          'Without it a restore is refused and returns a diff preview instead.',
       },
     },
 
@@ -182,6 +244,13 @@ export function apply(ctx: Context, config: DshConfigGitBackupConfig = {}) {
       if (mode !== 'backup' && mode !== 'restore') {
         throw new Error(`dsh_config_git_backup: mode 必须是 "backup" 或 "restore"，收到 "${mode}"`)
       }
+      const dryRun = args.dryRun === true
+      const confirm = args.confirm === true
+      if (dryRun && confirm) {
+        throw new Error(
+          'dsh_config_git_backup: dryRun 与 confirm 不能同时为 true（dryRun 只预览，confirm 表示确认执行）',
+        )
+      }
       if (!repoDir || !syncScript) {
         throw new Error(
           'dsh_config_git_backup: 未配置备份仓库。请通过插件 config（repoDir/syncScript）或环境变量 ' +
@@ -194,10 +263,29 @@ export function apply(ctx: Context, config: DshConfigGitBackupConfig = {}) {
 
       const logs: string[] = []
 
-      // 1) 同步（robocopy 排除 node_modules）
+      // restore 是破坏性操作：未确认时先取一份 dry-run 差异，再带着差异报错 —— 既不写入任何东西，
+      // 又让调用方（模型/用户）看得到"到底会被覆盖什么"，而不是只给一句"请确认"。
+      if (mode === 'restore' && !confirm && !dryRun) {
+        const preview = await run(
+          ctx,
+          syncArgv(powershell, syncScript, mode, true, false),
+          exec.signal,
+          repoDir,
+        )
+        const detail = [preview.stdout.trim(), preview.stderr.trim()]
+          .filter((part) => part.length > 0)
+          .join('\n')
+        throw new Error(
+          'dsh_config_git_backup restore 未确认：restore 会用仓库版本覆盖活跃源，未提交的本地改动会丢失。\n' +
+            `预览（sync.ps1 -Mode restore -DryRun，exit ${preview.exitCode}）：\n${detail || '(无输出)'}\n` +
+            '确认无误后请重新调用并传 confirm: true；执行前会自动把活跃源快照到 <DSH_HOME>/vet/restore-snapshots/<时间戳>/。',
+        )
+      }
+
+      // 1) 同步（robocopy 排除 node_modules；restore 时脚本自己先快照、且自身要求 -Force）
       const sync = await run(
         ctx,
-        [powershell, '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', syncScript, '-Mode', mode],
+        syncArgv(powershell, syncScript, mode, dryRun, confirm),
         exec.signal,
         repoDir,
       )
@@ -208,40 +296,63 @@ export function apply(ctx: Context, config: DshConfigGitBackupConfig = {}) {
         throw new Error(`dsh_config_git_backup ${mode} 同步失败 (exit ${sync.exitCode}):\n${logs.join('\n')}`)
       }
 
+      // dry-run：到此为止，不做 git 操作、不改动任何文件
+      if (dryRun) {
+        logs.push('[dry-run] 未做任何改动')
+        return { stdout: logs.join('\n'), stderr: '' }
+      }
+
       // 2) backup 模式：git 留档
       if (mode === 'backup') {
         const add = await run(ctx, ['git', '-C', repoDir, 'add', '-A'], exec.signal, repoDir)
         if (add.exitCode !== 0) {
           throw new Error(`dsh_config_git_backup git add 失败 (exit ${add.exitCode}): ${add.stderr || add.stdout}`)
         }
-        const message = String(args.message ?? `备份: ${currentStamp()}`)
-        const commit = await run(
-          ctx,
-          ['git', '-C', repoDir, 'commit', '-m', message],
-          exec.signal,
-          repoDir,
-        )
-        if (commit.exitCode !== 0) {
-          const combined = `${commit.stderr}\n${commit.stdout}`
-          if (/nothing to commit|no changes added|无.*提交|nothing added/i.test(combined)) {
-            logs.push('[git] 无变更可提交（内容已一致）')
-          } else {
-            throw new Error(`dsh_config_git_backup git commit 失败 (exit ${commit.exitCode}):\n${combined}`)
-          }
-        } else {
-          logs.push(commit.stdout.trim() || `[git] 已提交: ${message}`)
+
+        // 先看有没有真的暂存下东西：没有就明确记成"无变更"，不再让"没提交"看起来像"提交成功"
+        const status = await run(ctx, ['git', '-C', repoDir, 'status', '--porcelain'], exec.signal, repoDir)
+        if (status.exitCode !== 0) {
+          logs.push(
+            `[git] 无法读取工作区状态 (exit ${status.exitCode})：${status.stderr.trim() || status.stdout.trim()}`,
+          )
         }
-        const status = await run(ctx, ['git', '-C', repoDir, 'status', '-sb'], exec.signal, repoDir)
-        if (status.exitCode === 0 && status.stdout.trim().length > 0) {
-          logs.push(`[git status] ${status.stdout.trim()}`)
+        const staged = status.exitCode === 0 ? status.stdout.trim() : ''
+
+        if (staged.length === 0) {
+          logs.push('[git] 无变更可提交：工作区内容与上次提交一致（sync.ps1 的落库校验已通过）')
+        } else {
+          const message = normalizeMessage(args.message)
+          const commit = await run(
+            ctx,
+            ['git', '-C', repoDir, 'commit', '-m', message],
+            exec.signal,
+            repoDir,
+          )
+          if (commit.exitCode !== 0) {
+            const combined = `${commit.stderr}\n${commit.stdout}`
+            if (/nothing to commit|no changes added|nothing added|无.*提交/i.test(combined)) {
+              logs.push('[git] 无变更可提交：git 报 nothing to commit（内容已一致或并发提交）')
+            } else {
+              throw new Error(`dsh_config_git_backup git commit 失败 (exit ${commit.exitCode}):\n${combined}`)
+            }
+          } else {
+            logs.push(commit.stdout.trim() || `[git] 已提交: ${message}`)
+          }
+        }
+
+        const finalStatus = await run(ctx, ['git', '-C', repoDir, 'status', '-sb'], exec.signal, repoDir)
+        if (finalStatus.exitCode === 0 && finalStatus.stdout.trim().length > 0) {
+          logs.push(`[git status] ${finalStatus.stdout.trim()}`)
         }
       } else {
-        logs.push('[restore] 已还原到活跃源；如涉及 profiles/bundle 变更需重启 DSH 生效')
+        logs.push(
+          '[restore] 已还原到活跃源（覆盖前快照路径见上方 sync.ps1 输出）；如涉及 profiles/bundle 变更需重启 DSH 生效',
+        )
       }
 
       return { stdout: logs.join('\n'), stderr: '' }
     },
   }))
 
-  console.log(`[tool-dsh-config-git-backup] registered "dsh_config_git_backup" — repo=${repoDir}`)
+  ctx.logger.info(`[tool-dsh-config-git-backup] registered "dsh_config_git_backup" — repo=${repoDir}`)
 }
