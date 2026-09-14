@@ -33,6 +33,15 @@ Designed for the workflow: keep plugin/skill/config **sources** versioned in a g
 dsh plugin --profile web add <package-name>
 ```
 
+## Dependencies / 依赖约定（0.2.1 起）
+
+插件**不声明任何 runtime `dependencies`**。它用到的 `@deepseek-ai/dsh-tools`（`defineTool`）与 `@deepseek-ai/dsh-subprocess`（`ctx.subprocess` 的类型 + `inject` 契约）**由宿主（DSH 主包）提供**，二者只以 `peerDependencies`（`optional: true`）声明。
+
+- 原因：`dsh-tools` 用 `Symbol('@deepseek-ai/dsh-tools.scheduler')` 注册工具运行时，Symbol **局部唯一**（不是 `Symbol.for`）。若包管理器在 profile 里再装一份真实副本，profile 内插件与主包会解析到**两个模块实例、两个 Symbol** → 工具注册与读取不匹配：该轮所有工具调用全线失败（`Cannot read properties of undefined (reading 'prepare')`），严重时插件树在启动期就崩。0.2.0 把 `0.1.0-rc.6` 写进 `dependencies`，正是这个故障的源头。
+- `optional: true` 是刻意为之：npm/pnpm 默认会自动安装非 optional 的 peer，那会重新引入第二份副本。
+- 本地开发用 `devDependencies` 里的同版本线 `@deepseek-ai/*` 做 `tsc` 类型检查与冒烟测试；它们只存在于 clone 出来的开发树，不随发布产物分发。
+- 若 profile 侧曾被旧版污染（`profiles/<name>/node_modules/@deepseek-ai/` 出现 `dsh-tools`/`dsh-subprocess` 真实目录），升级本插件后仍需把残留目录移走；此前的安装还会被 lock 记住，需在 `profiles/<name>/pnpm-workspace.yaml` 用 overrides 钉到宿主实例（`'@deepseek-ai/dsh-tools': 'link:../node_modules/@deepseek-ai/dsh-tools'`）。
+
 ## Configuration / 配置
 
 Provide via the profile patch layer (`cordis.patch.yml`) or environment variables; both unset → tool runs **fail-closed** (every call errors):
@@ -70,7 +79,7 @@ dsh_config_git_backup({ mode: 'restore', confirm: true })                       
 - **Platform**: the reference `sync.ps1` uses `robocopy` + Windows PowerShell (and reports UTF-8 output so Chinese text survives the pipe; its SHA256 check uses .NET instead of `Get-FileHash`, which Windows PowerShell 5.1 cannot autoload when a pwsh 7 `PSModulePath` is inherited). On non-Windows you supply your own sync script; the plugin itself is cross-platform (uses `ctx.subprocess`, `node:path`).
 - **Not a session/memory backup tool**: it versions *sources* (config/skills/plugins), not runtime state.
 - Runs through `ctx.subprocess` (host layer, outside sandbox restrictions).
-- **Tests**: `npm test` runs `test/smoke.mjs`, which drives the built tool against a throwaway sandbox (fake Cordis ctx, real subprocess, path-rewritten `sync.ps1`) and asserts the confirm gate, dry-run, snapshot, message normalization and fail-closed behavior. `test/sync-protection-tests.ps1` is the companion harness for the **sync-script contract** on this machine (it copies `C:\workspace\dsh\sync.ps1` into a sandbox, rewrites its path variables and asserts both directions, the snapshot, and the SHA256 verify) — run it with either `powershell` or `pwsh`; it needs no plugin install and never touches live sources.
+- **Tests**: `npm test` runs `test/smoke.mjs`, which drives the built tool against a throwaway sandbox (fake Cordis ctx, real subprocess, path-rewritten `sync.ps1`) and asserts the confirm gate, dry-run, snapshot, message normalization and fail-closed behavior. The sandbox points `sync.ps1` at its own live sources via the `DSH_HOME` environment variable and **aborts if an anchor in `sync.ps1` cannot be rewritten** — the suite must never read/overwrite the real `~/.dsh`. `test/sync-protection-tests.ps1` is the companion harness for the **sync-script contract** on this machine (it copies `C:\workspace\dsh\sync.ps1` into a sandbox, rewrites its path variables and asserts both directions, the snapshot, and the SHA256 verify) — run it with either `powershell` or `pwsh`; it needs no plugin install and never touches live sources.
 
 ## License
 

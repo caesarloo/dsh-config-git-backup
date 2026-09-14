@@ -54,11 +54,25 @@ writeFileSync(join(dshHome, 'settings.yaml'), 'live: 1')
 writeFileSync(join(dshHome, 'skills', 'demo', 'SKILL.md'), 'skill v1')
 writeFileSync(join(plugins, 'p.js'), 'plugin v1')
 
+// 沙箱隔离：sync.ps1 优先用 $env:DSH_HOME 定位活跃源，这里直接注入环境变量（子进程继承），
+// 不再对 $DshHome 那行做字符串改写 —— 该行自 2026-09-14 起是 if/else 形式，旧改写必然失配，
+// 结果是把真实 ~/.dsh 当活跃源同步（restore 用例还会覆盖真实文件）。锚点缺失一律中止。
+process.env.DSH_HOME = dshHome
+
 const patchedSync = join(root, 'sync.ps1')
-const patched = readFileSync(SOURCE_SYNC, 'utf8')
-  .replace("$Repo = 'C:\\workspace\\dsh'", `$Repo = '${repo}'`)
-  .replace("$DshHome = 'C:\\Users\\qizhe\\.dsh'", `$DshHome = '${dshHome}'`)
-  .replace("$PluginSrc = 'C:\\workspace\\plugins'", `$PluginSrc = '${plugins}'`)
+let patched = readFileSync(SOURCE_SYNC, 'utf8')
+for (const [from, to, label] of [
+  ["$Repo = 'C:\\workspace\\dsh'", `$Repo = '${repo}'`, 'Repo'],
+  ["$PluginSrc = 'C:\\workspace\\plugins'", `$PluginSrc = '${plugins}'`, 'PluginSrc'],
+]) {
+  if (!patched.includes(from)) {
+    throw new Error(`sandbox patch failed: ${label} anchor not found in sync.ps1 (${from}) — aborting so the run cannot touch live sources`)
+  }
+  patched = patched.replace(from, to)
+}
+if (!/\$env:DSH_HOME/.test(patched)) {
+  throw new Error('sandbox patch failed: sync.ps1 does not read $env:DSH_HOME — cannot point DshHome at the sandbox, aborting')
+}
 writeFileSync(patchedSync, patched, 'utf8')
 
 execFileSync('git', ['-C', repo, 'init', '-q'])
