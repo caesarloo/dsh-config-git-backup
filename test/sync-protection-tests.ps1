@@ -1,17 +1,27 @@
-# Isolated protection tests for this machine's sync.ps1 contract (D2/D4).
+﻿# Isolated protection tests for this machine's sync.ps1 contract (D2/D4).
 #
 # The plugin passes -Mode / -DryRun / -Force to a sync.ps1 it does not own, so the
 # contract is tested here rather than in smoke.mjs: this harness copies
-# {workspace}\dsh\sync.ps1 into a throwaway sandbox, rewrites its three path
+# the reference sync.ps1 into a throwaway sandbox, rewrites its three path
 # variables, and asserts preview / refusal / snapshot / verify behaviour there.
 # The real live sources are never touched.
 #
 # Run:  powershell -NoProfile -ExecutionPolicy Bypass -File test\sync-protection-tests.ps1
 # Exit: 0 = all checks passed, N>0 = number of failed checks.
 ## Isolated test harness for the hardened sync.ps1 (D2/D4).
-# It copies {workspace}\dsh\sync.ps1 into a throwaway sandbox, rewrites the three
+# It copies the reference sync.ps1 into a throwaway sandbox, rewrites the three
 # path variables, and exercises backup / restore protection there. The real live
 # sources are never touched.
+param(
+    # 被测的 sync.ps1 路径；缺省回落：环境变量 DSH_CONFIG_GIT_BACKUP_SYNC_SCRIPT → 与本项目同级的 dsh 备份仓库。
+    [string]$SourceSync
+)
+if (-not $SourceSync) { $SourceSync = $env:DSH_CONFIG_GIT_BACKUP_SYNC_SCRIPT }
+if (-not $SourceSync) { $SourceSync = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'dsh\sync.ps1' }
+if (-not (Test-Path -LiteralPath $SourceSync)) {
+    throw "找不到被测的 sync.ps1：$SourceSync（用 -SourceSync <路径> 指定）"
+}
+
 $ErrorActionPreference = 'Stop'
 $script:fail = 0
 
@@ -34,7 +44,7 @@ Set-Content -Path (Join-Path $home2 'profiles\web\cordis.yml') -Value 'cordis li
 Set-Content -Path (Join-Path $home2 'skills\demo\SKILL.md') -Value 'skill v1'
 Set-Content -Path (Join-Path $plug 'p.js') -Value 'plugin v1'
 
-$lines = Get-Content '{workspace}\dsh\sync.ps1'
+$lines = Get-Content -LiteralPath $SourceSync
 $out = New-Object System.Collections.Generic.List[string]
 foreach ($l in $lines) {
     if ($l -like '$Repo = *') { $out.Add("`$Repo = '$repo'") }
