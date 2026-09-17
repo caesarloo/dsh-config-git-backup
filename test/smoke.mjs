@@ -1,7 +1,7 @@
 // End-to-end smoke test for the built plugin (dist/index.js).
 //
 // It drives the real tool implementation against a throwaway sandbox: the repo
-// gets sync.ps1 copied in with its three path variables rewritten, so the live
+// gets sync.ps1 copied in with its $Repo path variable rewritten, so the live
 // DSH sources are never touched. ctx is faked — tools.register captures the tool
 // definition, subprocess.spawn delegates to node:child_process.
 //
@@ -23,13 +23,23 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const pluginDist = process.env.SMOKE_PLUGIN_DIST ?? new URL('../dist/index.js', import.meta.url).href
 console.log(`plugin under test: ${pluginDist}`)
 const { apply } = await import(pluginDist)
 
 const PS = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
-const SOURCE_SYNC = '{workspace}\\dsh\\sync.ps1'
+// sync.ps1 是 dsh 备份仓库的资产，不在本仓库内。默认按相对位置推导（同级目录的 dsh 仓库），
+// 不写死绝对路径：写死既会把作者机器路径带进公开仓库，也会让套件在别人机器上直接失败。
+// 需要指向别处时用 SMOKE_SOURCE_SYNC 覆盖。
+const SOURCE_SYNC =
+  process.env.SMOKE_SOURCE_SYNC ?? fileURLToPath(new URL('../../dsh/sync.ps1', import.meta.url))
+if (!existsSync(SOURCE_SYNC)) {
+  throw new Error(
+    `sync.ps1 not found at ${SOURCE_SYNC} — set SMOKE_SOURCE_SYNC to the dsh backup repo's sync.ps1`,
+  )
+}
 
 let failures = 0
 function check(name, ok, detail = '') {
@@ -61,14 +71,15 @@ process.env.DSH_HOME = dshHome
 
 const patchedSync = join(root, 'sync.ps1')
 let patched = readFileSync(SOURCE_SYNC, 'utf8')
-for (const [from, to, label] of [
-  ["$Repo = '{workspace}\\dsh'", `$Repo = '${repo}'`, 'Repo'],
-  ["$PluginSrc = '{workspace}\\plugins'", `$PluginSrc = '${plugins}'`, 'PluginSrc'],
-]) {
-  if (!patched.includes(from)) {
-    throw new Error(`sandbox patch failed: ${label} anchor not found in sync.ps1 (${from}) — aborting so the run cannot touch live sources`)
+// 锚点用**正则**而非字面量：sync.ps1 的 $Repo 指向作者本机路径，写死字面量既会把本机信息
+// 带进公开仓库，也会在路径一变动就失配。这里只匹配「变量名 + 任意单引号字符串」的形态。
+// 注：旧版还会改写 $PluginSrc，但 sync.ps1 自 2026-09-14 起不再备份 plugins 目录、该变量已
+// 删除；保留失效锚点会让整个套件在第一个用例之前就中止，故移除（沙箱 plugins 目录仍保留）。
+for (const [match, to, label] of [[/^\$Repo = '.*'$/m, `$Repo = '${repo}'`, 'Repo']]) {
+  if (!match.test(patched)) {
+    throw new Error(`sandbox patch failed: ${label} anchor not found in sync.ps1 (${match}) — aborting so the run cannot touch live sources`)
   }
-  patched = patched.replace(from, to)
+  patched = patched.replace(match, to)
 }
 if (!/\$env:DSH_HOME/.test(patched)) {
   throw new Error('sandbox patch failed: sync.ps1 does not read $env:DSH_HOME — cannot point DshHome at the sandbox, aborting')
