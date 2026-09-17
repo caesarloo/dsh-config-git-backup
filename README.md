@@ -57,8 +57,8 @@ Example patch:
 ```yaml
 - id: tool-dsh-config-git-backup
   config:
-    repoDir: '{workspace}\dsh'
-    syncScript: '{workspace}\dsh\sync.ps1'
+    repoDir: '<备份仓库路径>'
+    syncScript: '<备份仓库路径>\sync.ps1'
 ```
 
 ## Usage (agent view) / 用法示例
@@ -79,7 +79,7 @@ dsh_config_git_backup({ mode: 'restore', confirm: true })                       
 - **Platform**: the reference `sync.ps1` uses `robocopy` + Windows PowerShell (and reports UTF-8 output so Chinese text survives the pipe; its SHA256 check uses .NET instead of `Get-FileHash`, which Windows PowerShell 5.1 cannot autoload when a pwsh 7 `PSModulePath` is inherited). On non-Windows you supply your own sync script; the plugin itself is cross-platform (uses `ctx.subprocess`, `node:path`).
 - **Not a session/memory backup tool**: it versions *sources* (config/skills/plugins), not runtime state.
 - Runs through `ctx.subprocess` (host layer, outside sandbox restrictions).
-- **Tests**: `npm test` runs `test/smoke.mjs`, which drives the built tool against a throwaway sandbox (fake Cordis ctx, real subprocess, path-rewritten `sync.ps1`) and asserts the confirm gate, dry-run, snapshot, message normalization and fail-closed behavior. The sandbox points `sync.ps1` at its own live sources via the `DSH_HOME` environment variable and **aborts if an anchor in `sync.ps1` cannot be rewritten** — the suite must never read/overwrite the real `~/.dsh`. `test/sync-protection-tests.ps1` is the companion harness for the **sync-script contract** on this machine (it copies `{workspace}\dsh\sync.ps1` into a sandbox, rewrites its path variables and asserts both directions, the snapshot, and the SHA256 verify) — run it with either `powershell` or `pwsh`; it needs no plugin install and never touches live sources.
+- **Tests**: `npm test` runs `test/smoke.mjs`, which drives the built tool against a throwaway sandbox (fake Cordis ctx, real subprocess, path-rewritten `sync.ps1`) and asserts the confirm gate, dry-run, snapshot, message normalization and fail-closed behavior. The sandbox points `sync.ps1` at its own live sources via the `DSH_HOME` environment variable and **aborts if an anchor in `sync.ps1` cannot be rewritten** — the suite must never read/overwrite the real `~/.dsh`. `test/sync-protection-tests.ps1` is the companion harness for the **sync-script contract** on this machine (it copies the reference `sync.ps1` into a sandbox, rewrites its path variables and asserts both directions, the snapshot, and the SHA256 verify) — run it with either `powershell` or `pwsh`; it needs no plugin install and never touches live sources.
 
 ## License
 
