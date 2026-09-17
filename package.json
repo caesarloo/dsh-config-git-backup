@@ -1,6 +1,6 @@
 {
   "name": "@caesarloo/dsh-config-git-backup",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Backup/restore DSH config, custom skills and plugin sources against a local git repository, callable by the agent as the dsh_config_git_backup tool (backup = sync + git commit; restore = repo back to live sources).",
   "keywords": [
     "dsh",
