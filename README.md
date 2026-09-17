@@ -71,7 +71,7 @@ Example patch:
 ### Usage
 
 ```
-dsh_config_git_backup({ mode: 'backup', message: 'update skill my-skill' })   # sync + git commit
+dsh_config_git_backup({ mode: 'backup', message: 'update skill my-skill' })         # sync + git commit
 dsh_config_git_backup({ mode: 'backup', dryRun: true })                            # preview what would be written
 dsh_config_git_backup({ mode: 'restore', dryRun: true })                           # preview what would be overwritten
 dsh_config_git_backup({ mode: 'restore', confirm: true })                          # confirm: snapshot, then overwrite
@@ -161,7 +161,7 @@ dsh --profile web --dump-config | Select-String tool-dsh-config-git-backup
 ### 用法示例
 
 ```
-dsh_config_git_backup({ mode: 'backup', message: '更新技能 my-skill' })   # 同步 + git commit
+dsh_config_git_backup({ mode: 'backup', message: '更新技能 my-skill' })          # 同步 + git commit
 dsh_config_git_backup({ mode: 'backup', dryRun: true })                        # 预览将写入仓库的差异
 dsh_config_git_backup({ mode: 'restore', dryRun: true })                       # 预览将被覆盖的活跃源项
 dsh_config_git_backup({ mode: 'restore', confirm: true })                      # 确认还原（先快照，再覆盖）
