@@ -49,6 +49,11 @@ The plugin declares **no runtime `dependencies`**. The host (DSH itself) provide
 - The `devDependencies` copies exist only in a development clone for `tsc` type-checking and the smoke test; they are not part of the published artifact.
 - If a profile was polluted by an older version, upgrade the plugin and move the leftover real directories away; pinning the host instance through `overrides` in `pnpm-workspace.yaml` prevents a repeat.
 
+### DSH version compatibility
+
+- `engines.dsh` is declared as `>=0.2.0-rc.2 <0.3.0`: verified against DSH 0.2.1-rc.2, staying on the 0.2.x host line. DSH 0.2.1+ prefers this field over `peerDependencies` (which is then ignored), and the plugin manager refuses installs that do not satisfy it with `incompatible-version`.
+- `dsh.manifestVersion` is `1`, the declared package-metadata format.
+
 ### Configuration
 
 Provide via the profile patch layer (`cordis.patch.yml`) or environment variables. With neither set, the tool runs **fail-closed** (every call errors).
@@ -138,6 +143,11 @@ dsh --profile web --dump-config | Select-String tool-dsh-config-git-backup
 - **原因**：`dsh-tools` 用 `Symbol('@deepseek-ai/dsh-tools.scheduler')` 注册工具运行时，而 `Symbol` 是**局部唯一**的（不是 `Symbol.for`）。若包管理器在 profile 里再装一份真实副本，插件与主包会解析到**两个模块实例、两个 Symbol** → 工具注册与读取不匹配，该轮所有工具调用全线失败。把这两个包写成非 optional 的 peer 会重新引入那份副本，所以必须是 `optional: true`。
 - `devDependencies` 里的同版本包只存在于开发克隆，用于 `tsc` 类型检查与冒烟测试，不随发布产物分发。
 - 若某个 profile 曾被旧版污染，升级本插件后还要把残留的真实目录移走；在 `pnpm-workspace.yaml` 里用 `overrides` 把宿主实例钉住可防复发。
+
+### DSH 版本兼容
+
+- `engines.dsh` 声明为 `>=0.2.0-rc.2 <0.3.0`：已在 DSH 0.2.1-rc.2 上验证，支持面保持在 0.2.x 宿主线。DSH 0.2.1 起宿主**优先按该字段判定**（声明后忽略 `peerDependencies`），插件管理器安装前也按它校验，不满足时报 `incompatible-version`。
+- `dsh.manifestVersion` 为 `1`，声明的包元数据格式。
 
 ### 配置
 

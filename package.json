@@ -1,6 +1,6 @@
 {
   "name": "@caesarloo/dsh-config-git-backup",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Backup/restore DSH config, custom skills and plugin sources against a local git repository, callable by the agent as the dsh_config_git_backup tool (backup = sync + git commit; restore = repo back to live sources).",
   "keywords": [
     "dsh",
@@ -11,6 +11,9 @@
     "git"
   ],
   "license": "MIT",
+  "engines": {
+    "dsh": ">=0.2.0-rc.2 <0.3.0"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "exports": {
@@ -22,6 +25,7 @@
     "CHANGELOG.md"
   ],
   "dsh": {
+    "manifestVersion": 1,
     "bundle": {
       "patch": "./cordis.patch.yml"
     }

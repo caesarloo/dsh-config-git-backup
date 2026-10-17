@@ -3,6 +3,26 @@
 All notable changes to this package are documented in this file.
 本文件记录本包的重要变更。
 
+## [0.2.7] - 2026-10-17
+
+**DSH 0.2.1 compatibility declaration / DSH 0.2.1 兼容声明**
+
+- Declare `engines.dsh` (`>=0.2.0-rc.2 <0.3.0`) and `dsh.manifestVersion: 1`. Since DSH 0.2.1 the
+  host decides plugin compatibility by `engines.dsh` **first** and ignores `peerDependencies` when
+  it is declared; the plugin manager reads the same fields before installing and refuses an
+  unsatisfied package with `incompatible-version`. `manifestVersion: 1` declares the
+  package-metadata format.
+- No source changes were required for DSH 0.2.1-rc.2 (verified on the 0.2.1-rc.2 desktop host):
+  `defineTool`, `ctx.tools.register`, `ctx.subprocess.spawn`, `handle.done` and
+  `handle.collected.*.readFrom(0).text` are unchanged, and `dsh_config_git_backup` in
+  `backup` + `dryRun` mode completed normally.
+- 声明 `engines.dsh`（`>=0.2.0-rc.2 <0.3.0`）与 `dsh.manifestVersion: 1`。DSH 0.2.1 起宿主**优先按
+  `engines.dsh` 判定**插件兼容性，声明了该字段就忽略 `peerDependencies`；插件管理器在安装前也读
+  这两个字段，不满足时报 `incompatible-version`；`manifestVersion: 1` 声明包元数据格式。
+- 0.2.1-rc.2 下**无需改动代码**（已在桌面端 0.2.1-rc.2 实测）：`defineTool`、`ctx.tools.register`、
+  `ctx.subprocess.spawn`、`handle.done`、`handle.collected.*.readFrom(0).text` 均未变化，
+  `dsh_config_git_backup` 的 `backup` + `dryRun` 模式正常完成。
+
 ## [0.2.6] - 2026-09-30
 
 **DSH 0.2.0 compatibility / DSH 0.2.0 兼容**
