@@ -1,7 +1,7 @@
 // dsh-config-git-backup — 把 DSH 配置备份/还原封装为模型可调用的工具插件。
 //
 // 活跃源（被 DSH 实际读取/加载）：
-//   - ~/.dsh/AGENTS.md、settings.yaml、profiles/web/*      (配置)
+//   - ~/.dsh/AGENTS.md、settings.yaml、profiles/<profile>/*  (配置)
 //   - ~/.dsh/skills/                                        (技能)
 //   - <plugins 源目录>                                       (插件)
 // 备份目标：本机 dsh git 仓库（定期备份，非活跃源）。

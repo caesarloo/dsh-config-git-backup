@@ -32,14 +32,21 @@ The intended workflow: keep plugin / skill / config **sources** versioned in a g
 ### Install
 
 ```sh
-dsh plugin --profile web add @caesarloo/dsh-config-git-backup
+dsh plugin --profile <profile> add @caesarloo/dsh-config-git-backup
 ```
 
-Restart dsh afterwards (bundle-level change, not hot-reloaded). Verify:
+On the desktop app the recommended path is the **Plugin page**; the managed `desktop` profile is
+owned by the Electron application, so use the app's own CLI (or the Plugin page) to install or
+inspect it. From a local checkout, install by directory: `dsh plugin --profile <profile> add <project-directory>`.
+
+Restart DSH afterwards (bundle-layer change, not hot-reloaded). Verify — CLI shape:
 
 ```powershell
-dsh --profile web --dump-config | Select-String tool-dsh-config-git-backup
+dsh --profile <profile> --dump-config | Select-String tool-dsh-config-git-backup
 ```
+
+On the desktop app `--dump-config` is refused for the managed profile; verify from the Plugin page
+or with the bundled CLI: `plugin --profile <profile> list --depth 0`.
 
 ### Dependencies (since 0.2.1)
 
@@ -51,8 +58,9 @@ The plugin declares **no runtime `dependencies`**. The host (DSH itself) provide
 
 ### DSH version compatibility
 
-- `engines.dsh` is declared as `>=0.2.0-rc.2 <0.3.0`: verified against DSH 0.2.1-rc.2, staying on the 0.2.x host line. DSH 0.2.1+ prefers this field over `peerDependencies` (which is then ignored), and the plugin manager refuses installs that do not satisfy it with `incompatible-version`.
+- `engines.dsh` is declared as `>=0.2.0-rc.2 <0.3.0`: re-verified against DSH **0.2.1-rc.3** (2026-10-24), staying on the 0.2.x host line. DSH 0.2.1+ prefers this field over `peerDependencies` (which is then ignored), and the plugin manager refuses installs that do not satisfy it with `incompatible-version`.
 - `dsh.manifestVersion` is `1`, the declared package-metadata format.
+- The upper bound is intentional: a future DSH 0.3 is rejected until this plugin is re-verified and republished. An out-of-range run is granted with the plugin manager's **exact-version exemption**, stored in `profiles/<profile>/compatibility.json`; if that grant should survive a restore or a machine move, add `compatibility.json` to your `sync.ps1` item list (it is profile metadata, not a secret).
 
 ### Configuration
 
@@ -87,7 +95,8 @@ dsh_config_git_backup({ mode: 'restore', confirm: true })                       
 ### Notes & limits
 
 - **`sync.ps1` contract** — implement `-Mode backup` / `-Mode restore` copying between the live sources and the repo, excluding `node_modules/` and anything else you do not want versioned. To get the 0.2.0 protections from a custom script, also accept `-DryRun` (preview, no writes) and `-Force` (acknowledge a destructive restore; snapshot first). The plugin performs the git commit for `backup`, and for `restore` refuses without `confirm` and reports the snapshot path.
-- **Never sync host-private secrets.** The reference `sync.ps1` keeps `profiles/web/cordis.patch.yml` out of its item list (it holds a local relay token and machine-specific absolute paths); only a sanitized `cordis.patch.yml.example` is versioned. A repo-side `.gitignore` additionally excludes `.credentials.yaml`, `sessions/`, `storages/`, `.env`, `node_modules/`, `dist/`.
+- **Never sync host-private secrets.** The reference `sync.ps1` keeps `profiles/<profile>/cordis.patch.yml` out of its item list (it holds machine-specific absolute paths and machine-local credentials); only a sanitized `cordis.patch.yml.example` is versioned. A repo-side `.gitignore` additionally excludes `.credentials.yaml`, `sessions/`, `storages/`, `.env`, `node_modules/`, `dist/`.
+- **Exemption file (DSH 0.2.1+)** — exact-version grants are stored in `profiles/<profile>/compatibility.json`. It is profile metadata without credentials; include it in the sync item list if you rely on such grants, otherwise a restore/reinstall silently loses them.
 - **Platform** — the reference `sync.ps1` uses `robocopy` + Windows PowerShell (and reports UTF-8 output; its SHA256 check uses .NET rather than `Get-FileHash`). On non-Windows you supply your own sync script; the plugin itself is cross-platform (`ctx.subprocess`, `node:path`).
 - **Not a session/memory backup tool** — it versions *sources* (config / skills / plugins), not runtime state.
 - Runs through `ctx.subprocess` (host layer, outside sandbox restrictions).
@@ -127,14 +136,20 @@ MIT
 ### 安装
 
 ```sh
-dsh plugin --profile web add @caesarloo/dsh-config-git-backup
+dsh plugin --profile <profile> add @caesarloo/dsh-config-git-backup
 ```
 
-装完**重启 dsh**（bundle 层变更，不随热重载生效）。验证：
+桌面端推荐走**插件页**安装；受管的 `desktop` profile 由 Electron 应用独占管理，请用应用自带 CLI
+（或插件页）安装与查看。本地检出目录安装：`dsh plugin --profile <profile> add <项目目录>`。
+
+装完**重启 DSH**（bundle 层变更，不随热重载生效）。验证——CLI 形态：
 
 ```powershell
-dsh --profile web --dump-config | Select-String tool-dsh-config-git-backup
+dsh --profile <profile> --dump-config | Select-String tool-dsh-config-git-backup
 ```
+
+桌面端对受管 profile 会拒绝 `--dump-config`；请从插件页确认，或用桌面端自带 CLI：
+`plugin --profile <profile> list --depth 0`。
 
 ### 依赖约定（0.2.1 起）
 
@@ -146,8 +161,9 @@ dsh --profile web --dump-config | Select-String tool-dsh-config-git-backup
 
 ### DSH 版本兼容
 
-- `engines.dsh` 声明为 `>=0.2.0-rc.2 <0.3.0`：已在 DSH 0.2.1-rc.2 上验证，支持面保持在 0.2.x 宿主线。DSH 0.2.1 起宿主**优先按该字段判定**（声明后忽略 `peerDependencies`），插件管理器安装前也按它校验，不满足时报 `incompatible-version`。
+- `engines.dsh` 声明为 `>=0.2.0-rc.2 <0.3.0`：已在 DSH **0.2.1-rc.3**（2026-10-24 复验）上验证，支持面保持在 0.2.x 宿主线。DSH 0.2.1 起宿主**优先按该字段判定**（声明后忽略 `peerDependencies`），插件管理器安装前也按它校验，不满足时报 `incompatible-version`。
 - `dsh.manifestVersion` 为 `1`，声明的包元数据格式。
+- 上界是刻意的：DSH 0.3 会被**有意拒绝**，直到本插件重新复验并发新版。确需在范围外宿主上先跑，用插件管理器的**精确版本豁免**（记录在 `profiles/<profile>/compatibility.json`）；若希望该授权在 restore 或换机后保留，请把 `compatibility.json` 加入 `sync.ps1` 的同步项（它是 profile 元数据，不含凭据）。
 
 ### 配置
 
@@ -182,7 +198,8 @@ dsh_config_git_backup({ mode: 'restore', confirm: true })                      #
 ### 说明与限制
 
 - **`sync.ps1` 契约** —— 实现 `-Mode backup` / `-Mode restore`，在活跃源与仓库之间复制，排除 `node_modules/` 以及任何你不想版本化的内容。要用上 0.2.0 的保护，自定义脚本还需接受 `-DryRun`（只预览、不写入）与 `-Force`（确认破坏性还原，先做快照）。`backup` 的 git 提交由插件完成；`restore` 缺 `confirm` 时插件直接拒绝，并报告快照路径。
-- **绝不同步含主机私密信息的文件。** 参考实现的 `sync.ps1` 刻意把 `profiles/web/cordis.patch.yml` 排除在同步项之外（它含本地转发口令与机器专属绝对路径），仓库里只放脱敏模板 `cordis.patch.yml.example`。仓库侧 `.gitignore` 另排除 `.credentials.yaml`、`sessions/`、`storages/`、`.env`、`node_modules/`、`dist/`。
+- **绝不同步含主机私密信息的文件。** 参考实现的 `sync.ps1` 刻意把 `profiles/<profile>/cordis.patch.yml` 排除在同步项之外（它含机器专属绝对路径与本机凭据），仓库里只放脱敏模板 `cordis.patch.yml.example`。仓库侧 `.gitignore` 另排除 `.credentials.yaml`、`sessions/`、`storages/`、`.env`、`node_modules/`、`dist/`。
+- **豁免文件（DSH 0.2.1 起）** —— 精确版本授权记录在 `profiles/<profile>/compatibility.json`。它是 profile 元数据、不含凭据；如果你依赖这类授权，请把它加入同步项清单，否则 restore / 重装会静默丢失授权。
 - **平台** —— 参考实现的 `sync.ps1` 使用 `robocopy` + Windows PowerShell（并输出 UTF-8，其 SHA256 校验用 .NET 而非 `Get-FileHash`）。在非 Windows 上请自备同步脚本；插件本身跨平台（`ctx.subprocess`、`node:path`）。
 - **不是会话 / 记忆备份工具** —— 它版本化的是**源文件**（配置 / 技能 / 插件），不是运行时状态。
 - 通过 `ctx.subprocess`（host 层）执行，不受沙箱限制。

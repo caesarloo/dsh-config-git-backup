@@ -3,6 +3,36 @@
 All notable changes to this package are documented in this file.
 本文件记录本包的重要变更。
 
+## [0.2.8] - 2026-10-24
+
+**DSH 0.2.1-rc.3 re-verification, install docs corrected, 0.2.1 exemption file documented /
+DSH 0.2.1-rc.3 复验、安装文档纠错、补充 0.2.1 豁免文件说明**
+
+- Re-verified on the DSH 0.2.1-rc.3 desktop host: **no code changes were required**.
+  `defineTool`, `ctx.tools.register`, `ctx.subprocess.spawn`, `handle.done` and
+  `handle.collected.*.readFrom(0).text` are unchanged; `dsh_config_git_backup` in `backup` +
+  `dryRun` mode completed normally.
+- README install/verify commands no longer hardcode the retired CLI `web` profile: they show the
+  profile-agnostic form, the desktop shape (Plugin page / bundled CLI) and the restart requirement.
+- README documents the DSH 0.2.1 **exact-version exemption** file
+  (`profiles/<profile>/compatibility.json`): if a restore or machine move should keep such a grant,
+  add it to the `sync.ps1` item list — otherwise the out-of-range bundle is skipped again.
+- README's machine-local `cordis.patch.yml` example still used the retired `web` path; it is now
+  `profiles/<profile>/cordis.patch.yml`.
+- `publishConfig.access: public` and a `prepublishOnly` gate (`build && test`) are declared, so a
+  manual `npm publish` cannot ship an unbuilt or untested artifact.
+- 已在 DSH 0.2.1-rc.3 桌面端复验：**无需改动代码**。`defineTool`、`ctx.tools.register`、
+  `ctx.subprocess.spawn`、`handle.done`、`handle.collected.*.readFrom(0).text` 均未变化；
+  `dsh_config_git_backup` 的 `backup` + `dryRun` 模式正常完成。
+- README 安装/验证命令不再写死已退役的 CLI `web` profile：改为与 profile 无关的写法，并补充桌面端
+  形态（插件页 / 桌面端自带 CLI）与「bundle 层改动需重启」。
+- README 补充 DSH 0.2.1 的**精确版本豁免**文件 `profiles/<profile>/compatibility.json`：若希望在
+  restore 或换机后保留该授权，应把它加入 `sync.ps1` 的同步项；否则超出范围的 bundle 会再次被跳过。
+- README 中「机器专属 `cordis.patch.yml`」示例仍写着已退役的 `web` 路径，已改为
+  `profiles/<profile>/cordis.patch.yml`。
+- 声明 `publishConfig.access: public` 与 `prepublishOnly` 闸门（`build && test`），手工
+  `npm publish` 不会发出未构建或未测过的产物。
+
 ## [0.2.7] - 2026-10-17
 
 **DSH 0.2.1 compatibility declaration / DSH 0.2.1 兼容声明**
