@@ -3,6 +3,42 @@
 All notable changes to this package are documented in this file.
 本文件记录本包的重要变更。
 
+## [0.2.9] - 2026-10-30
+
+**Bundle entry now imports the scoped package name and a manifest gate is added /
+bundle 入口改用包实名，并新增发布清单门禁**
+
+- `cordis.patch.yml` 的 insert `name` 由裸名 `dsh-config-git-backup` 改为包实名
+  `@caesarloo/dsh-config-git-backup`。宿主按该 specifier `import()` 解析插件：裸名在 npm 上并不存在，
+  因此按 README 的 scoped 安装命令装到新机时 entry 解析失败、宿主只写一行日志后**静默跳过该插件**；
+  本机此前是靠 profile 的 npm 别名依赖（`"dsh-config-git-backup": "npm:@caesarloo/…"`）才恰好对上。
+- **升级注意**：使用该别名依赖的 profile，升级到 0.2.9 后必须把依赖键改为 scoped 名
+  （`dsh plugin add @caesarloo/dsh-config-git-backup`，或把 package.json 的依赖键改成
+  `"@caesarloo/dsh-config-git-backup": "0.2.9"` 后 `pnpm install`），再重启 DSH；否则 insert 名
+  解析不到、插件同样静默不加载。
+- 新增发布门禁 `scripts/check-manifest.mjs`（移植自 vision 插件）：校验入口存在、patch 被 `files`
+  包含、`insert.name` 必须等于包名、`engines.dsh` 非空；已并入 `npm test`。
+- 新增 `pretest: npm run build`：`npm test` 现在测的是刚构建的 `dist/`。
+- 已在 DSH **0.2.1-rc.5** 桌面端复验（2026-10-30）：`defineTool`、`ctx.tools.register`、
+  `ctx.subprocess.spawn` 与 handle 链路均未变化；0.2.1-rc.3 → rc.5 之间插件契约面逐字节零变化。
+
+- The insert `name` in `cordis.patch.yml` now uses the scoped package name
+  (`@caesarloo/dsh-config-git-backup`) instead of the bare `dsh-config-git-backup`. The host
+  `import()`s that specifier; the bare name is not an npm package, so a fresh install via the
+  README's scoped command failed to resolve and the host skipped the entry with a single log line.
+  This machine only worked because the profile used an npm alias dependency
+  (`"dsh-config-git-backup": "npm:@caesarloo/…"`).
+- **Upgrade note**: profiles installed through that alias must re-add the dependency under the
+  scoped key (or change the dependency key to `"@caesarloo/dsh-config-git-backup": "0.2.9"` and run
+  `pnpm install`) before restarting DSH, otherwise the insert name no longer resolves.
+- Added the `scripts/check-manifest.mjs` release gate (ported from the vision plugin): entry points
+  exist, the patch ships inside `files`, `insert.name` equals the package name, and `engines.dsh` is
+  present. It is wired into `npm test`.
+- Added `pretest: npm run build`, so `npm test` exercises the freshly built `dist/`.
+- Re-verified on the DSH **0.2.1-rc.5** desktop host (2026-10-30): `defineTool`,
+  `ctx.tools.register`, `ctx.subprocess.spawn` and the handle chain are unchanged; the plugin-facing
+  contract surface is byte-identical between 0.2.1-rc.3 and rc.5.
+
 ## [0.2.8] - 2026-10-24
 
 **DSH 0.2.1-rc.3 re-verification, install docs corrected, 0.2.1 exemption file documented /

@@ -48,6 +48,13 @@ dsh --profile <profile> --dump-config | Select-String tool-dsh-config-git-backup
 On the desktop app `--dump-config` is refused for the managed profile; verify from the Plugin page
 or with the bundled CLI: `plugin --profile <profile> list --depth 0`.
 
+The bundle's `cordis.patch.yml` imports the package by its **scoped** name
+(`@caesarloo/dsh-config-git-backup`), which must equal `package.json`'s `name` and the profile
+dependency key. Install it under the scoped name shown above. A bare npm alias
+(`"dsh-config-git-backup": "npm:@caesarloo/…"`, the pre-0.2.9 workaround) no longer matches the
+insert name — if you upgraded from such a profile, re-add the dependency under the scoped key and
+restart DSH.
+
 ### Dependencies (since 0.2.1)
 
 The plugin declares **no runtime `dependencies`**. The host (DSH itself) provides `@deepseek-ai/dsh-tools` (`defineTool`) and `@deepseek-ai/dsh-subprocess` (`ctx.subprocess`); both are declared only as `optional: true` peerDependencies.
@@ -58,7 +65,7 @@ The plugin declares **no runtime `dependencies`**. The host (DSH itself) provide
 
 ### DSH version compatibility
 
-- `engines.dsh` is declared as `>=0.2.0-rc.2 <0.3.0`: re-verified against DSH **0.2.1-rc.3** (2026-10-24), staying on the 0.2.x host line. DSH 0.2.1+ prefers this field over `peerDependencies` (which is then ignored), and the plugin manager refuses installs that do not satisfy it with `incompatible-version`.
+- `engines.dsh` is declared as `>=0.2.0-rc.2 <0.3.0`: re-verified against DSH **0.2.1-rc.5** (2026-10-30), staying on the 0.2.x host line. DSH 0.2.1+ prefers this field over `peerDependencies` (which is then ignored), and the plugin manager refuses installs that do not satisfy it with `incompatible-version`.
 - `dsh.manifestVersion` is `1`, the declared package-metadata format.
 - The upper bound is intentional: a future DSH 0.3 is rejected until this plugin is re-verified and republished. An out-of-range run is granted with the plugin manager's **exact-version exemption**, stored in `profiles/<profile>/compatibility.json`; if that grant should survive a restore or a machine move, add `compatibility.json` to your `sync.ps1` item list (it is profile metadata, not a secret).
 
@@ -151,6 +158,11 @@ dsh --profile <profile> --dump-config | Select-String tool-dsh-config-git-backup
 桌面端对受管 profile 会拒绝 `--dump-config`；请从插件页确认，或用桌面端自带 CLI：
 `plugin --profile <profile> list --depth 0`。
 
+bundle 的 `cordis.patch.yml` 按**包实名**（`@caesarloo/dsh-config-git-backup`）导入本包，
+该名字必须同时等于 `package.json` 的 `name` 与 profile 的依赖键。请按上文的 scoped 名安装。
+裸名 npm 别名（`"dsh-config-git-backup": "npm:@caesarloo/…"`，0.2.9 之前的变通写法）已不再匹配
+insert name——若你的 profile 是这样装的，升级前请把依赖键改回 scoped 名再重启 DSH。
+
 ### 依赖约定（0.2.1 起）
 
 插件**不声明任何 runtime `dependencies`**。它用到的 `@deepseek-ai/dsh-tools`（`defineTool`）与 `@deepseek-ai/dsh-subprocess`（`ctx.subprocess`）**由宿主（DSH 主包）提供**，二者只以 `optional: true` 的 peerDependencies 声明。
@@ -161,7 +173,7 @@ dsh --profile <profile> --dump-config | Select-String tool-dsh-config-git-backup
 
 ### DSH 版本兼容
 
-- `engines.dsh` 声明为 `>=0.2.0-rc.2 <0.3.0`：已在 DSH **0.2.1-rc.3**（2026-10-24 复验）上验证，支持面保持在 0.2.x 宿主线。DSH 0.2.1 起宿主**优先按该字段判定**（声明后忽略 `peerDependencies`），插件管理器安装前也按它校验，不满足时报 `incompatible-version`。
+- `engines.dsh` 声明为 `>=0.2.0-rc.2 <0.3.0`：已在 DSH **0.2.1-rc.5**（2026-10-30 复验）上验证，支持面保持在 0.2.x 宿主线。DSH 0.2.1 起宿主**优先按该字段判定**（声明后忽略 `peerDependencies`），插件管理器安装前也按它校验，不满足时报 `incompatible-version`。
 - `dsh.manifestVersion` 为 `1`，声明的包元数据格式。
 - 上界是刻意的：DSH 0.3 会被**有意拒绝**，直到本插件重新复验并发新版。确需在范围外宿主上先跑，用插件管理器的**精确版本豁免**（记录在 `profiles/<profile>/compatibility.json`）；若希望该授权在 restore 或换机后保留，请把 `compatibility.json` 加入 `sync.ps1` 的同步项（它是 profile 元数据，不含凭据）。
 

@@ -1,6 +1,14 @@
 # dsh-config-git-backup bundle layer — applied when a profile lists this bundle.
 # `name` is the PACKAGE NAME resolved through the profile's node_modules
 # (or $DSH_HOME/profiles/node_modules), NOT a relative path.
+#
+# It MUST equal package.json's name (`@caesarloo/dsh-config-git-backup`).
+# The cordis loader imports this exact specifier; a mismatch — e.g. the bare
+# name `dsh-config-git-backup`, which is not published on npm — fails to
+# resolve, and the entry is skipped with only a log line (no install-time error).
+# The same rule applies to the profile dependency key: install with the scoped
+# name (`dsh plugin add @caesarloo/dsh-config-git-backup`), not through a bare
+# npm alias. `scripts/check-manifest.mjs` enforces this before publishing.
 - insert:
     - id: tool-dsh-config-git-backup
-      name: dsh-config-git-backup
+      name: '@caesarloo/dsh-config-git-backup'
